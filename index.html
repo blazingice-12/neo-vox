@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEO-VOX CITY // CYBERPUNK WORLD EXPLORER</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --neon-cyan: #00f5ff;
+    --neon-pink: #ff2d78;
+    --neon-purple: #bf00ff;
+    --neon-orange: #ff7700;
+    --neon-green: #00ff88;
+    --neon-yellow: #ffee00;
+    --bg: #000814;
+    --bg2: #010c1a;
+    --mono: 'Share Tech Mono', monospace;
+    --display: 'Orbitron', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    font-family: var(--mono);
+    color: var(--neon-cyan);
+  }
+
+  /* ─── HUD TOP ─── */
+  #hud-top {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    height: 48px;
+    background: rgba(0,8,20,0.97);
+    border-bottom: 1px solid rgba(0,245,255,0.2);
+    padding: 0 16px;
+    position: relative;
+    z-index: 100;
+  }
+  #hud-top::after {
+    content: '';
+    position: absolute;
+    bottom: -2px; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--neon-cyan), var(--neon-pink), transparent);
+    opacity: 0.4;
+  }
+  #logo {
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 12px rgba(0,245,255,0.6);
+    white-space: nowrap;
+    margin-right: 20px;
+  }
+  #logo span { color: var(--neon-pink); text-shadow: 0 0 12px rgba(255,45,120,0.6); }
+  #city-name {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: rgba(0,245,255,0.7);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .hstat {
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: rgba(0,255,136,0.7);
+    padding: 0 10px;
+    border-left: 1px solid rgba(0,245,255,0.1);
+    white-space: nowrap;
+  }
+  .hstat b { color: var(--neon-yellow); }
+  .hud-btn {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid rgba(255,45,120,0.4);
+    color: var(--neon-pink);
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-left: 8px;
+    white-space: nowrap;
+  }
+  .hud-btn:hover { background: rgba(255,45,120,0.12); border-color: var(--neon-pink); text-shadow: 0 0 8px var(--neon-pink); }
+  .hud-btn.cyan { border-color: rgba(0,245,255,0.3); color: var(--neon-cyan); }
+  .hud-btn.cyan:hover { background: rgba(0,245,255,0.08); border-color: var(--neon-cyan); text-shadow: 0 0 8px var(--neon-cyan); }
+
+  /* ─── CANVAS AREA ─── */
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    cursor: grab;
+  }
+  #canvas-wrap.dragging { cursor: grabbing; }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  /* scanlines */
+  #scanlines {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.07) 3px, rgba(0,0,0,0.07) 4px);
+    pointer-events: none; z-index: 10;
+  }
+  /* vignette */
+  #vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.6) 100%);
+    pointer-events: none; z-index: 11;
+  }
+
+  /* tooltip */
+  #tip {
+    position: absolute; z-index: 50;
+    background: rgba(0,4,12,0.96);
+    border: 1px solid rgba(0,245,255,0.35);
+    padding: 6px 12px;
+    font-size: 10px;
+    color: var(--neon-cyan);
+    pointer-events: none;
+    display: none;
+    letter-spacing: 1.5px;
+    white-space: nowrap;
+  }
+  #tip .tip-type { color: var(--neon-pink); font-size: 9px; display: block; margin-bottom: 2px; letter-spacing: 2px; }
+
+  /* minimap */
+  #minimap-wrap {
+    position: absolute; bottom: 16px; right: 16px; z-index: 30;
+  }
+  #minimap-label {
+    font-size: 9px; letter-spacing: 2px; color: rgba(0,245,255,0.4); margin-bottom: 4px; text-align: right;
+  }
+  #minimap {
+    width: 120px; height: 90px;
+    border: 1px solid rgba(0,245,255,0.2);
+    image-rendering: pixelated;
+    display: block;
+    opacity: 0.8;
+  }
+  #minimap-cursor {
+    position: absolute;
+    border: 1px solid var(--neon-cyan);
+    pointer-events: none;
+    opacity: 0.7;
+  }
+
+  /* compass / hint */
+  #hint {
+    position: absolute; bottom: 16px; left: 16px; z-index: 30;
+    font-size: 9px; letter-spacing: 2px; color: rgba(0,245,255,0.3);
+    line-height: 1.8;
+  }
+
+  /* ─── HUD BOTTOM ─── */
+  #hud-bot {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 36px;
+    background: rgba(0,8,20,0.97);
+    border-top: 1px solid rgba(0,245,255,0.15);
+    padding: 0 16px;
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    color: rgba(0,245,255,0.3);
+    overflow: hidden;
+    position: relative;
+    z-index: 100;
+  }
+  #ticker-inner {
+    display: flex; gap: 60px; white-space: nowrap;
+    animation: ticker 28s linear infinite;
+  }
+  @keyframes ticker {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  .tick-item { color: rgba(0,245,255,0.4); }
+  .tick-item b { color: var(--neon-yellow); }
+  .tick-sep { color: rgba(255,45,120,0.5); margin: 0 8px; }
+
+  /* loading screen */
+  #loading {
+    position: absolute; inset: 0; z-index: 200;
+    background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px;
+  }
+  #loading h1 {
+    font-family: var(--display); font-size: 28px; font-weight: 900;
+    letter-spacing: 6px; color: var(--neon-cyan);
+    text-shadow: 0 0 30px rgba(0,245,255,0.5);
+  }
+  #loading h1 span { color: var(--neon-pink); text-shadow: 0 0 30px rgba(255,45,120,0.5); }
+  #loading-sub { font-size: 11px; letter-spacing: 3px; color: rgba(0,245,255,0.5); }
+  #loading-bar-wrap {
+    width: 260px; height: 2px; background: rgba(0,245,255,0.1); position: relative; overflow: hidden;
+  }
+  #loading-bar {
+    height: 100%; background: var(--neon-cyan); width: 0%;
+    transition: width 0.3s; box-shadow: 0 0 8px var(--neon-cyan);
+  }
+
+  /* flash message */
+  #flash {
+    position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
+    font-size: 10px; letter-spacing: 3px; color: var(--neon-yellow);
+    pointer-events: none; z-index: 40;
+    opacity: 0; transition: opacity 0.4s;
+    text-shadow: 0 0 8px var(--neon-yellow);
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <h1>NEO<span>-VOX</span></h1>
+  <div id="loading-sub">INITIALIZING CITY GRID...</div>
+  <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
+</div>
+
+<!-- HUD Top -->
+<div id="hud-top">
+  <div id="logo">NEO<span>-VOX</span></div>
+  <div id="city-name">NEO-VOX CITY // SECTOR 7G</div>
+  <div class="hstat">POP <b id="hpop">---</b>K</div>
+  <div class="hstat">THREAT <b id="hthreat">--</b>%</div>
+  <div class="hstat">TIME <b id="htime">NIGHT</b></div>
+  <div class="hstat" id="hcoords">0,0</div>
+  <button class="hud-btn cyan" id="btn-time" onclick="toggleTime()">[ DAWN ]</button>
+  <button class="hud-btn" id="btn-new" onclick="newCity()">[ NEW CITY ]</button>
+</div>
+
+<!-- Canvas -->
+<div id="canvas-wrap">
+  <canvas id="c"></canvas>
+  <div id="scanlines"></div>
+  <div id="vignette"></div>
+  <div id="tip"><span class="tip-type" id="tip-type"></span><span id="tip-name"></span></div>
+  <div id="minimap-wrap">
+    <div id="minimap-label">MINIMAP</div>
+    <canvas id="minimap" width="120" height="90"></canvas>
+    <div id="minimap-cursor"></div>
+  </div>
+  <div id="hint">DRAG TO EXPLORE<br>HOVER BUILDINGS<br>↑ N</div>
+  <div id="flash"></div>
+</div>
+
+<!-- HUD Bottom ticker -->
+<div id="hud-bot">
+  <div id="ticker-inner"></div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const mmCanvas = document.getElementById('minimap');
+const mmCtx = mmCanvas.getContext('2d');
+const cw = document.getElementById('canvas-wrap');
+const WORLD = 3200, TILE = 32;
+const COLS = Math.ceil(WORLD / TILE), ROWS = Math.ceil(WORLD / TILE);
+let world = null, camX = 0, camY = 0, isDawn = false;
+let drag = false, dragSX = 0, dragSY = 0, dragCX = 0, dragCY = 0;
+let rain = [], time = 0, animId = null;
+
+function r(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+
+const BLDG_PALETTES = [
+  ['#1a0025','#240030','#32003e'],
+  ['#001520','#001e2e','#002a3a'],
+  ['#100d00','#1c1800','#282200'],
+  ['#1e0010','#2a0018','#360020'],
+  ['#001a0d','#002618','#003020'],
+  ['#080808','#101010','#181818'],
+  ['#0a001a','#120025','#1a0030'],
+];
+
+const NEON_MAP = {
+  CORP:  ['#ff2266','#ff0099','#cc0044','#ff44aa'],
+  SHOP:  ['#00ffcc','#00ff88','#33ffdd','#00ffaa'],
+  CLUB:  ['#bb00ff','#9900cc','#dd44ff','#ee88ff'],
+  POWER: ['#ff9900','#ffcc00','#ff6600','#ffaa00'],
+  RESI:  ['#0088ff','#0044ff','#44aaff','#0066cc'],
+  WASTE: ['#444','#333'],
+  HOTEL: ['#ff4400','#ffaa00','#ff6600'],
+};
+const SIGN_COLORS = ['#ff2266','#00ffcc','#bb00ff','#ff9900','#0088ff','#ffff00','#ff44aa','#44ff88'];
+const NAMES = {
+  CORP:  ['OMNI-CORP','NEXUS-X','VOIDTECH','SYNTH-CO','DRAKO INC','NEUROX','AXIOM','HIVE CORP','CIPHER','QUANTUM'],
+  SHOP:  ['CHROMA','NOODLE+','IMPLANTS','CHROME ST.','SYNTH-MKT','BLACK MKT','CYBERWARE','BOOST LAB'],
+  CLUB:  ['THE GRID','VOID BAR','PIXEL','CHROME KLUB','BASS LVL','NEON DECAY','STATIC','DEATHWAVE'],
+  POWER: ['PWR-7','GRID-4','FUSE CORE','REACTOR','ARC NODE'],
+  RESI:  ['APT-44','BLOCK-9','UNIT-7','HIVE-3','STACK 22','SLAB-8'],
+  HOTEL: ['NEON INN','CHROME LODGE','VOID HOTEL','SLEEP-8'],
+  WASTE: ['RUINS','WRECK','ABANDONED','CONDEMNED'],
+};
+
+function pickNeon(t) { return pick(NEON_MAP[t] || ['#fff']); }
+function pickSign() { return pick(SIGN_COLORS); }
+function getName(t) { return pick(NAMES[t] || ['???']); }
+
+function genWindows(type, floors) {
+  if (type === 'WASTE') return [];
+  let wins = [], rows = Math.min(floors * 2, 24), cols = r(2, 4);
+  let litChance = type === 'CORP' ? 0.72 : type === 'HOTEL' ? 0.6 : 0.38;
+  for (let wr = 0; wr < rows; wr++)
+    for (let wc = 0; wc < cols; wc++)
+      wins.push({ r: wr, c: wc, cols, lit: Math.random() < litChance,
+        color: pick(['#ffffcc','#ffee88','#ff9900','#0088ff','#00ffcc','#ff44aa','#ffffff']) });
+  return wins;
+}
+
+function newCity() {
+  if (animId) cancelAnimationFrame(animId);
+  world = genWorld();
+  camX = WORLD / 2 - canvas.width / 2;
+  camY = WORLD / 2 - canvas.height / 2;
+  document.getElementById('hpop').textContent = r(120, 999);
+  document.getElementById('hthreat').textContent = r(10, 90);
+  const cities = ['NEO-VOX CITY','GHOST METRO','CHROME DELTA','NEON BASIN','VOID SECTOR','CIPHER SPRAWL','AXIOM NEXUS'];
+  const sectors = ['SECTOR 7G','ZONE K3','BLOCK 99','DISTRICT 0','FRINGE LOOP','NODE 44','GRID-9'];
+  document.getElementById('city-name').textContent = pick(cities) + ' // ' + pick(sectors);
+  buildMinimap();
+  buildTicker();
+  animId = requestAnimationFrame(frame);
+  flash('// CITY GENERATED');
+}
+
+function toggleTime() {
+  isDawn = !isDawn;
+  document.getElementById('htime').textContent = isDawn ? 'DAWN' : 'NIGHT';
+  document.getElementById('btn-time').textContent = isDawn ? '[ NIGHT ]' : '[ DAWN ]';
+  flash(isDawn ? '// DAWN MODE' : '// NIGHT MODE');
+}
+
+function flash(msg) {
+  const el = document.getElementById('flash');
+  el.textContent = msg; el.style.opacity = '1';
+  setTimeout(() => el.style.opacity = '0', 2000);
+}
+
+function genWorld() {
+  let w = { buildings: [], roads: [], canals: [], roadSet: new Set(), canalSet: new Set() };
+  let grid = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
+
+  for (let y = 0; y < ROWS; y += r(6, 10)) for (let x = 0; x < COLS; x++) grid[y][x] = 1;
+  for (let x = 0; x < COLS; x += r(6, 10)) for (let y = 0; y < ROWS; y++) grid[y][x] = 1;
+
+  let cy = r(8, ROWS - 12);
+  for (let x = 0; x < COLS; x++) {
+    let jit = Math.round(Math.sin(x * 0.15) * 2.5);
+    let ny = cy + jit;
+    if (ny >= 0 && ny < ROWS) { grid[ny][x] = 2; w.canalSet.add(x + ',' + ny); }
+    if (ny + 1 < ROWS) { grid[ny + 1][x] = 2; w.canalSet.add(x + ',' + (ny + 1)); }
+  }
+  let cy2 = r(cy + 15, ROWS - 6);
+  for (let x = 0; x < COLS; x++) {
+    let jit = Math.round(Math.cos(x * 0.2) * 2);
+    let ny = cy2 + jit;
+    if (ny >= 0 && ny < ROWS) { grid[ny][x] = 2; w.canalSet.add(x + ',' + ny); }
+  }
+
+  for (let y = 0; y < ROWS; y++)
+    for (let x = 0; x < COLS; x++) {
+      if (grid[y][x] === 1) { w.roads.push({ x: x * TILE, y: y * TILE }); w.roadSet.add(x + ',' + y); }
+      else if (grid[y][x] === 2) w.canals.push({ x: x * TILE, y: y * TILE });
+    }
+
+  for (let by = 1; by < ROWS - 2; by++) {
+    for (let bx = 1; bx < COLS - 2; bx++) {
+      if (w.roadSet.has(bx + ',' + by) || w.canalSet.has(bx + ',' + by)) continue;
+      let type = pickType(bx, by, COLS, ROWS);
+      let pal = pick(BLDG_PALETTES);
+      let floors = type === 'CORP' ? r(6, 18) : type === 'HOTEL' ? r(4, 10) : type === 'RESI' ? r(2, 6) : r(1, 4);
+      w.buildings.push({
+        x: bx * TILE, y: by * TILE, floors,
+        type, color: pal[r(0, pal.length - 1)],
+        neon: pickNeon(type), sign: pickSign(),
+        windows: genWindows(type, floors),
+        name: getName(type)
+      });
+    }
+  }
+  rain = [];
+  for (let i = 0; i < 80; i++)
+    rain.push({ x: Math.random() * WORLD, y: Math.random() * WORLD, vy: r(7, 16), len: r(12, 28), alpha: Math.random() * 0.45 + 0.2 });
+  return w;
+}
+
+function pickType(bx, by, C, R) {
+  let p = Math.random();
+  let distCenter = Math.hypot(bx - C / 2, by - R / 2) / (C / 2);
+  if (distCenter < 0.2) return p < 0.5 ? 'CORP' : p < 0.75 ? 'SHOP' : 'HOTEL';
+  if (p < 0.14) return 'CORP';
+  if (p < 0.28) return 'SHOP';
+  if (p < 0.38) return 'CLUB';
+  if (p < 0.44) return 'POWER';
+  if (p < 0.50) return 'HOTEL';
+  if (p < 0.58) return 'WASTE';
+  return 'RESI';
+}
+
+function drawBuilding(b) {
+  const px = b.x - camX, py = b.y - camY;
+  const bh = b.floors * 12;
+  const groundY = py + TILE - 2;
+  const roofY = groundY - bh;
+  if (px + TILE < -2 || px > canvas.width + 2 || groundY < -2 || roofY > canvas.height + 2) return;
+
+  ctx.fillStyle = b.color;
+  ctx.fillRect(px, roofY, TILE, bh);
+
+  ctx.fillStyle = isDawn ? 'rgba(255,140,60,0.06)' : 'rgba(0,0,20,0.28)';
+  ctx.fillRect(px, roofY, 5, bh);
+
+  ctx.fillStyle = isDawn ? '#2a1818' : '#0d0d12';
+  ctx.fillRect(px, roofY, TILE, 3);
+
+  b.windows.forEach(w => {
+    let cols = w.cols;
+    let ww = Math.max(2, Math.floor((TILE - 6) / cols) - 1);
+    let wh = 4;
+    let wx = px + 3 + w.c * Math.floor((TILE - 6) / cols);
+    let wy = roofY + 6 + w.r * (wh + 3);
+    if (wy + wh > groundY - 1) return;
+    ctx.fillStyle = w.lit ? (isDawn ? 'rgba(255,200,80,0.5)' : w.color) : 'rgba(10,12,20,0.9)';
+    ctx.fillRect(wx, wy, ww, wh);
+  });
+
+  if (b.type !== 'WASTE') {
+    ctx.fillStyle = b.neon + (isDawn ? '55' : 'bb');
+    ctx.fillRect(px, roofY, TILE, 2);
+    if (bh > 36) {
+      ctx.fillStyle = b.sign + (isDawn ? '44' : '99');
+      ctx.fillRect(px + 2, roofY + Math.floor(bh * 0.35), TILE - 4, Math.min(5, Math.floor(bh / 6)));
+    }
+    if (b.type === 'CLUB' && bh > 24) {
+      ctx.fillStyle = b.neon + (isDawn ? '33' : '66');
+      ctx.fillRect(px, groundY - 8, TILE, 8);
+    }
+  }
+
+  if (b.type === 'CORP' && bh > 80) {
+    let blinkOn = Math.floor(time / 30) % 2 === 0;
+    ctx.fillStyle = blinkOn ? (isDawn ? 'rgba(255,180,60,0.8)' : 'rgba(255,40,80,0.95)') : 'rgba(60,0,0,0.8)';
+    ctx.fillRect(px + TILE / 2 - 1, roofY - 7, 2, 7);
+    if (blinkOn) {
+      ctx.fillStyle = isDawn ? 'rgba(255,180,60,0.25)' : 'rgba(255,40,80,0.3)';
+      ctx.beginPath(); ctx.arc(px + TILE / 2, roofY - 7, 5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  if (b.type === 'POWER') {
+    ctx.fillStyle = b.neon + 'cc';
+    for (let i = 0; i < 3; i++) ctx.fillRect(px + 4 + i * 8, roofY + 4, 4, bh - 8);
+  }
+}
+
+function drawRoad(road) {
+  const px = road.x - camX, py = road.y - camY;
+  if (px + TILE < 0 || px > canvas.width || py + TILE < 0 || py > canvas.height) return;
+  ctx.fillStyle = isDawn ? '#181820' : '#0e0e16';
+  ctx.fillRect(px, py, TILE, TILE);
+  ctx.strokeStyle = isDawn ? 'rgba(255,200,80,0.1)' : 'rgba(255,255,0,0.08)';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
+  ctx.fillStyle = isDawn ? 'rgba(255,200,80,0.06)' : 'rgba(255,255,100,0.06)';
+  ctx.fillRect(px + TILE / 2 - 0.5, py, 1, TILE);
+}
+
+function drawCanal(canal) {
+  const px = canal.x - camX, py = canal.y - camY;
+  if (px + TILE < 0 || px > canvas.width || py + TILE < 0 || py > canvas.height) return;
+  let shimmer = 0.12 + 0.08 * Math.sin(time * 0.04 + canal.x * 0.008 + canal.y * 0.005);
+  ctx.fillStyle = isDawn ? `rgba(60,110,180,${shimmer + 0.18})` : `rgba(0,60,160,${shimmer + 0.06})`;
+  ctx.fillRect(px, py, TILE, TILE);
+  ctx.strokeStyle = isDawn ? 'rgba(120,180,255,0.25)' : 'rgba(0,100,200,0.35)';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(px, py, TILE, TILE);
+  if (Math.floor(time / 20) % 3 === 0) {
+    ctx.fillStyle = isDawn ? 'rgba(150,210,255,0.12)' : 'rgba(0,150,255,0.1)';
+    ctx.fillRect(px + 2, py + TILE / 2 - 1, TILE - 4, 2);
+  }
+}
+
+function drawSky() {
+  if (isDawn) {
+    ctx.fillStyle = '#070515';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(160,40,0,0.14)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height * 0.35);
+    ctx.fillStyle = 'rgba(200,80,0,0.06)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height * 0.15);
+  } else {
+    ctx.fillStyle = '#000814';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < 80; i++) {
+      let sx = (i * 137 + 41 + Math.floor(camX / 80)) % canvas.width;
+      let sy = (i * 97 + 13 + Math.floor(camY / 80)) % (canvas.height * 0.45);
+      let alpha = 0.15 + 0.35 * ((i % 5) / 5);
+      ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+      ctx.fillRect(sx, sy, 1, 1);
+    }
+  }
+}
+
+function drawRain() {
+  ctx.lineWidth = 0.8;
+  rain.forEach(d => {
+    let sx = d.x - camX, sy = d.y - camY;
+    if (sx < -4 || sx > canvas.width + 4 || sy < -32 || sy > canvas.height + 32) {
+      d.y += d.vy; d.x += 0.4;
+      if (d.y > WORLD) { d.y = 0; d.x = Math.random() * WORLD; }
+      return;
+    }
+    let alpha = isDawn ? d.alpha * 0.25 : d.alpha;
+    ctx.strokeStyle = `rgba(0,200,255,${alpha})`;
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + 1, sy + d.len); ctx.stroke();
+    d.y += d.vy; d.x += 0.4;
+    if (d.y > WORLD) { d.y = 0; d.x = Math.random() * WORLD; }
+  });
+}
+
+function drawFog() {
+  if (isDawn) return;
+  ctx.fillStyle = 'rgba(0,10,30,0.06)';
+  ctx.fillRect(0, canvas.height * 0.65, canvas.width, canvas.height * 0.35);
+  ctx.fillStyle = 'rgba(0,5,15,0.04)';
+  ctx.fillRect(0, canvas.height * 0.8, canvas.width, canvas.height * 0.2);
+}
+
+function clampCam() {
+  camX = Math.max(0, Math.min(WORLD - canvas.width, camX));
+  camY = Math.max(0, Math.min(WORLD - canvas.height, camY));
+}
+
+let minimapDirty = true;
+let minimapCache = null;
+
+function buildMinimap() {
+  minimapCache = document.createElement('canvas');
+  minimapCache.width = 120; minimapCache.height = 90;
+  let mc = minimapCache.getContext('2d');
+  let sx = 120 / WORLD, sy = 90 / WORLD;
+  mc.fillStyle = '#000814'; mc.fillRect(0, 0, 120, 90);
+  world.roads.forEach(rd => { mc.fillStyle='#1a1a22'; mc.fillRect(rd.x*sx,rd.y*sy,TILE*sx+1,TILE*sy+1); });
+  world.canals.forEach(c => { mc.fillStyle='#003090'; mc.fillRect(c.x*sx,c.y*sy,TILE*sx+1,TILE*sy+1); });
+  world.buildings.forEach(b => {
+    let col = b.type==='CORP'?'#3a0028':b.type==='SHOP'?'#003020':b.type==='CLUB'?'#180025':
+              b.type==='POWER'?'#1a0d00':b.type==='WASTE'?'#111':b.type==='HOTEL'?'#1a1200':'#0d0d0d';
+    mc.fillStyle = col; mc.fillRect(b.x*sx,b.y*sy,TILE*sx+0.5,TILE*sy+0.5);
+  });
+  minimapDirty = false;
+}
+
+function drawMinimap() {
+  if (!minimapCache) return;
+  mmCtx.drawImage(minimapCache, 0, 0);
+  let sx = 120 / WORLD, sy = 90 / WORLD;
+  mmCtx.strokeStyle = 'rgba(0,245,255,0.6)';
+  mmCtx.lineWidth = 1;
+  mmCtx.strokeRect(camX*sx, camY*sy, canvas.width*sx, canvas.height*sy);
+}
+
+function updateMinimapCursor() {
+  if (!minimapCache) return;
+  let sx = 120 / WORLD, sy = 90 / WORLD;
+  let el = document.getElementById('minimap-cursor');
+  let wrap = document.getElementById('minimap-wrap');
+  let wRect = wrap.getBoundingClientRect();
+  let mmEl = document.getElementById('minimap');
+  let mmRect = mmEl.getBoundingClientRect();
+  let scaleX = mmRect.width / 120, scaleY = mmRect.height / 90;
+  el.style.left = (mmRect.left - wRect.left + camX * sx * scaleX) + 'px';
+  el.style.top = (mmRect.top - wRect.top + camY * sy * scaleY) + 'px';
+  el.style.width = (canvas.width * sx * scaleX) + 'px';
+  el.style.height = (canvas.height * sy * scaleY) + 'px';
+}
+
+function buildTicker() {
+  const items = [
+    `CORP INDEX <b>+${r(1,12)}.${r(0,9)}%</b>`,
+    `THREAT LEVEL <b>${r(10,90)}%</b>`,
+    `RAINFALL <b>${r(40,100)}MM/HR</b>`,
+    `IMPLANT SALES <b>+${r(200,900)}K</b>`,
+    `GRID STABILITY <b>${r(60,99)}%</b>`,
+    `NEURAL BANDWIDTH <b>${r(1,9)}.${r(0,9)}TB/S</b>`,
+    `VOID-CORP STOCK <b>↑${r(1,20)}.${r(0,9)}</b>`,
+    `CRIME INDEX <b>${r(30,90)}</b>`,
+    `SYNTH PRODUCTION <b>NOMINAL</b>`,
+    `SECTOR PATROL <b>ACTIVE</b>`,
+  ];
+  let html = items.map(i => `<span class="tick-item">${i}</span><span class="tick-sep">//</span>`).join('');
+  let inner = document.getElementById('ticker-inner');
+  inner.innerHTML = html + html;
+}
+
+function frame() {
+  time++;
+  if (!world) return;
+  clampCam();
+  drawSky();
+  world.roads.forEach(drawRoad);
+  world.canals.forEach(drawCanal);
+  world.buildings.sort((a, b) => a.y - b.y).forEach(drawBuilding);
+  drawRain();
+  drawFog();
+  drawMinimap();
+  updateMinimapCursor();
+  const tx = Math.floor((camX + canvas.width / 2) / TILE);
+  const ty = Math.floor((camY + canvas.height / 2) / TILE);
+  document.getElementById('hcoords').textContent = tx + ',' + ty;
+  animId = requestAnimationFrame(frame);
+}
+
+function resize() {
+  canvas.width = cw.clientWidth;
+  canvas.height = cw.clientHeight;
+}
+
+/* ── DRAG ── */
+cw.addEventListener('mousedown', e => { drag=true; dragSX=e.clientX; dragSY=e.clientY; dragCX=camX; dragCY=camY; cw.classList.add('dragging'); });
+window.addEventListener('mousemove', e => { if(!drag) return; camX=dragCX-(e.clientX-dragSX); camY=dragCY-(e.clientY-dragSY); });
+window.addEventListener('mouseup', () => { drag=false; cw.classList.remove('dragging'); });
+cw.addEventListener('touchstart', e => { if(e.touches.length!==1) return; drag=true; dragSX=e.touches[0].clientX; dragSY=e.touches[0].clientY; dragCX=camX; dragCY=camY; }, {passive:true});
+window.addEventListener('touchmove', e => { if(!drag||e.touches.length!==1) return; camX=dragCX-(e.touches[0].clientX-dragSX); camY=dragCY-(e.touches[0].clientY-dragSY); }, {passive:true});
+window.addEventListener('touchend', () => { drag=false; });
+
+/* ── TOOLTIP ── */
+const tip = document.getElementById('tip');
+cw.addEventListener('mousemove', e => {
+  if (drag || !world) return;
+  const rect = cw.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const mx = (e.clientX - rect.left) * scaleX, my = (e.clientY - rect.top) * scaleX;
+  const wx = mx + camX, wy = my + camY;
+  let found = null;
+  for (let b of world.buildings) {
+    let bh = b.floors * 12;
+    let bx = b.x, by2 = b.y + TILE - 2 - bh;
+    if (wx >= bx && wx <= bx + TILE && wy >= by2 && wy <= by2 + bh) { found = b; break; }
+  }
+  if (found) {
+    document.getElementById('tip-type').textContent = found.type;
+    document.getElementById('tip-name').textContent = found.name;
+    tip.style.display = 'block';
+    tip.style.left = (e.clientX - rect.left + 14) + 'px';
+    tip.style.top = (e.clientY - rect.top + 10) + 'px';
+  } else {
+    tip.style.display = 'none';
+  }
+});
+cw.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+
+/* minimap click to jump */
+document.getElementById('minimap').addEventListener('click', e => {
+  if (!world) return;
+  let rect = document.getElementById('minimap').getBoundingClientRect();
+  let mx = (e.clientX - rect.left) / rect.width;
+  let my = (e.clientY - rect.top) / rect.height;
+  camX = mx * WORLD - canvas.width / 2;
+  camY = my * WORLD - canvas.height / 2;
+  clampCam();
+});
+
+/* ── INIT ── */
+window.addEventListener('resize', () => { resize(); });
+resize();
+
+let prog = 0;
+let loadBar = document.getElementById('loading-bar');
+let loadSub = document.getElementById('loading-sub');
+const loadSteps = ['LOADING CITY GRID...','SPAWNING BUILDINGS...','WIRING NEON SIGNS...','FLOODING CANALS...','CITY ONLINE'];
+let si = 0;
+let loadInterval = setInterval(() => {
+  prog += r(14, 26);
+  if (prog > 100) prog = 100;
+  loadBar.style.width = prog + '%';
+  if (si < loadSteps.length) loadSub.textContent = loadSteps[si++];
+  if (prog >= 100) {
+    clearInterval(loadInterval);
+    setTimeout(() => {
+      document.getElementById('loading').style.display = 'none';
+      newCity();
+    }, 400);
+  }
+}, 180);
+</script>
+</body>
+</html>
